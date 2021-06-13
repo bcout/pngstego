@@ -33,8 +33,7 @@ const char* PNG_filename;
 const char* output_filename;
 const char* method;
 const char* message;
-int rows;
-int columns;
+int available_space;
 
 void open_png_file(const char* PNG_filename);
 
@@ -147,4 +146,13 @@ int calculate_available_space(png_structp read_ptr, png_infop info_ptr){
     int height = png_get_image_height(read_ptr, info_ptr);
 
     fprintf(stdout, "Image is %dpx x %dpx\n", width, height);
+
+    //One pixel is 3 bytes, we can store 1 bit per byte. So, we can store
+    // 3 bits per pixel.
+
+    available_space = (width * height) * 3;
+    float available_space_kb = available_space * 0.000125;
+
+    fprintf(stdout, "Able to embed %d bits (%.2f kilobytes) of data\n",
+                    available_space, available_space_kb);
 }
