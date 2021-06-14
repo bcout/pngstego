@@ -44,7 +44,7 @@ Embedded with message "Digital Forensics Course"
 Original
 ![partially_transparent.png](partially_transparent.png)
 
-Embedded with message "Digital Forensics Course"
+Embedded with message "Digital Forensics Course"  
 ![embedded_partially_transparent.png](embedded_partially_transparent.png)
 
 # Source Code
