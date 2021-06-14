@@ -30,7 +30,6 @@
 #define BITS_NEEDED_TO_STORE_MESSAGE_LENGTH 32
 #define HEADER_LENGTH 8
 #define BYTE_SIZE 8
-#define PNG_OUPUT_FILENAME "embedded.png"
 
 png_bytep* row_pointers;
 png_infop info_ptr;
@@ -44,6 +43,7 @@ const char* message_filename;
 FILE* message_fp;
 size_t message_length;
 int available_space;
+char* PNG_output_filename;
 
 void open_png_file(const char* PNG_filename);
 
@@ -92,6 +92,10 @@ int main(int argc, char* argv[]){
         }
 
         if(check_message_size()){
+            //Create the output png's filename
+            char temp[FILENAME_MAX_LENGTH] = "embedded_";
+            strcat(temp, PNG_filename);
+            PNG_output_filename = temp;
             embed_data();
         }else{
             exit_cleanly();
@@ -269,7 +273,7 @@ void extract_data(){
 
 void output_embedded_png(){
     FILE* output_png_fp;
-    output_png_fp = fopen(PNG_OUPUT_FILENAME, "wb");
+    output_png_fp = fopen(PNG_output_filename, "wb");
     if(output_png_fp == NULL){
         fprintf(stderr, "Error in output_embedded_png(): %s\n", strerror(errno));
         exit_cleanly();
