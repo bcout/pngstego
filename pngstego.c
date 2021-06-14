@@ -5,10 +5,12 @@
   References:
     www.libpng.org/pub/png/libpng-1.4.0-manual.pdf
     www.codeproject.com/Articles/581298/PNG-Image-Steganography-with-libpng
-
+    https://stackoverflow.com/questions/16868439/how-do-i-write-a-program-to-swap-a-character-in-the-input-file-with-a-character
 
   Usage: $ ./pngstego filename.png embed message
          $ ./pngstego filename.png extract
+
+  Dependencies: Compiled using libpng version 1.6.37
 */
 
 #include <png.h>
@@ -24,41 +26,175 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+/**
+    If the user enters a variation of this word as the third command line
+    argument, the program will embed a message into a PNG
+*/
 #define EMBED_TEXT "EMBED"
+
+/**
+    If the user enters a variation of this word as the third command line
+    argument, the program will extract a message from a PNG
+*/
 #define EXTRACT_TEXT "EXTRACT"
+
+/**
+    The program builds the filename for the modified PNG programatically.
+    This is the maximum filename length for that file.
+*/
 #define FILENAME_MAX_LENGTH 256
+
+/**
+    The length of the embedded message will be stored at the beginning of
+    the modified PNG. This is how many bytes in the PNG will be taken up by this value,
+    but is also how many bits that are needed to represent the length of the
+    message. 32 bits provides more space than a person could ever need for basic
+    text messages.
+*/
 #define BITS_NEEDED_TO_STORE_MESSAGE_LENGTH 32
+
+/**
+    This is how many bytes the PNG header takes up in the file. The program reads
+    this amount of bytes before operating to confirm that the given file is a PNG.
+*/
 #define HEADER_LENGTH 8
+
+/**
+    This is the number of bits in a byte. Used in the many bitwise operations in
+    this program.
+*/
 #define BYTE_SIZE 8
 
+/**
+    This is an array of pointers to all the rows of the image. It is used to
+    traverse the image in the embed and extract functions.
+*/
 png_bytep* row_pointers;
+
+/**
+    This struct stores the metadata from the PNG.
+*/
 png_infop info_ptr;
+
+/**
+    This struct stores data related to the reading of the image. It is used
+    to access properties like the width and height of the image.
+*/
 png_structp read_ptr;
+
+/**
+    This struct stores data related to writing to a PNG.
+*/
 png_structp write_ptr;
+
+/**
+    This is the name of the original PNG image, provided on the command line,
+    that the user's message will be embedded into.
+*/
 const char* PNG_filename;
+
+/**
+    This is the name, provided on the command line, of the file that the extracted
+    message will be written to.
+*/
 const char* output_filename;
+
+/**
+    This is a file pointer for the above output_filename file.
+*/
 FILE* output_fp;
+
+/**
+    This value is provided on the command line and is either EMBED_TEXT or
+    EXTRACT_TEXT. It is used to decide whether to extract or embed data.
+*/
 const char* method;
+
+/**
+    This is the filename of the file containing the message to embed in the provided
+    PNG image. This is provided on the command line.
+*/
 const char* message_filename;
+
+/**
+    This is a file pointer to the above message file.
+    ------------------------------------------------------------------------------
+    WARNING: Non-ASCII values in the message are not supported and will result in
+              undefined behaviour!
+    ------------------------------------------------------------------------------
+*/
 FILE* message_fp;
+
+/**
+    This is the length, in characters (bytes), of the message contained in the
+    provided message file.
+*/
 size_t message_length;
+
+/**
+    This is the space, in bytes, available in the image for embedding. This program
+    uses the LSB method, so only one bit in each byte is being used.
+*/
 int available_space;
+
+/**
+    This is the filename of the modified PNG file. This program will write the modified
+    data to this file when it is done embedding the message.
+*/
 char* PNG_output_filename;
 
+/**
+    This function opens the provided PNG image and performs prelimiary checks.
+    It reads the header, initializes IO and data structures, then reads the entire
+    image into memory.
+*/
 void open_png_file(const char* PNG_filename);
 
+/**
+    This function modifies the least significant bit of each byte of the provided
+    image to hide a provided message. The first BITS_NEEDED_TO_STORE_MESSAGE_LENGTH are
+    reserved for holding the size of the message. This function modifies the minimum
+    number of bytes to embed the message, the rest are left alone.
+*/
 void embed_data();
 
+/**
+    This function combines the least significant bits of each byte of the provided
+    image and writes them to the provided output file. It first reads the first
+    BITS_NEEDED_TO_STORE_MESSAGE_LENGTH to see how many bytes to extract, then
+    extracts them. It stops when the specified number of bytes are read, and does
+    not interact with the rest of the image.
+*/
 void extract_data();
 
+/**
+    This function writes the modified PNG data to a new file to keep it independent
+    from the original. This is done once all the embedding is finished.
+*/
 void output_embedded_png();
 
+/**
+    This function calculates the number of bits that the user can embed within
+    the provided image.
+*/
 void calculate_available_space(png_structp read_ptr, png_infop info_ptr);
 
+/**
+    This function compares the provided message length with the amount of available
+    space. If there is not enough space, the user will be prompted to either
+    chop off the end of the message or exit the program.
+*/
 bool check_message_size();
 
+/**
+    This function frees up the data structures that were made and exits the program.
+*/
 void exit_cleanly();
 
+/**
+    This function pulls in the arguments from the command line, then decides whether
+    to embed or extract data using the provided image.
+*/
 int main(int argc, char* argv[]){
 
     //Check number of command line arguments
@@ -112,12 +248,10 @@ int main(int argc, char* argv[]){
 
         extract_data();
     }
+
+    return 0;
 }
 
-/*
-    This function attempts to open the provided file, then checks if it is a
-    PNG, then reads the header, then reads the entire image into memory.
-*/
 void open_png_file(const char* PNG_filename){
     FILE* PNG_file;
     unsigned char header[BYTE_SIZE];
@@ -224,6 +358,7 @@ void embed_data(){
 
     fprintf(stdout, "Message has been embedded!\n%d bytes embedded\n", (int)(bits_embedded/BYTE_SIZE));
 
+    fclose(message_fp);
     output_embedded_png();
 }
 
@@ -269,6 +404,7 @@ void extract_data(){
     }
 
     fprintf(stdout, "Done extracting!\n%d bytes extracted\n", (int)(bits_extracted / BYTE_SIZE));
+    fclose(output_fp);
 }
 
 void output_embedded_png(){
