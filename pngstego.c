@@ -30,6 +30,7 @@
 #define BITS_NEEDED_TO_STORE_MESSAGE_LENGTH 32
 #define HEADER_LENGTH 8
 #define BYTE_SIZE 8
+#define PNG_OUPUT_FILENAME "embedded.png"
 
 png_bytep* row_pointers;
 png_infop info_ptr;
@@ -37,7 +38,7 @@ png_structp read_ptr;
 png_structp write_ptr;
 const char* PNG_filename;
 const char* output_filename;
-const FILE* output_fp;
+FILE* output_fp;
 const char* method;
 const char* message_filename;
 FILE* message_fp;
@@ -48,9 +49,9 @@ void open_png_file(const char* PNG_filename);
 
 void embed_data();
 
-void extract_data(const char* output_filename);
+void extract_data();
 
-void output_png(const char* output_filename);
+void output_embedded_png();
 
 void calculate_available_space(png_structp read_ptr, png_infop info_ptr);
 
@@ -99,6 +100,13 @@ int main(int argc, char* argv[]){
     //If extract, extract the message from the PNG image and write it to a file.
     else if(strncasecmp(method, EXTRACT_TEXT, strlen(EXTRACT_TEXT)) == 0){
         output_filename = argv[3];
+        output_fp = fopen(output_filename, "wb");
+        if(output_fp == NULL){
+            fprintf(stderr, "Error opening output file(): %s\n", strerror(errno));
+            exit_cleanly();
+        }
+
+        extract_data();
     }
 }
 
@@ -171,7 +179,7 @@ void embed_data(){
     int max_rows = png_get_image_height(read_ptr, info_ptr);
     int max_cols = png_get_image_width(read_ptr, info_ptr);
     char buffer = 0;
-    int bytes_embedded = 0;
+    int bits_embedded = 0;
 
     for(row = 0; row < max_rows; row++){
         int col = 0;
@@ -206,11 +214,77 @@ void embed_data(){
             }else{
                 *(row_pointers[row] + col) &= 0xFE;
             }
-            bytes_embedded++;
+            bits_embedded++;
         }
     }
 
-    fprintf(stdout, "Message has been embedded!\n%d bytes embedded\n", bytes_embedded);
+    fprintf(stdout, "Message has been embedded!\n%d bytes embedded\n", (int)(bits_embedded/BYTE_SIZE));
+
+    output_embedded_png();
+}
+
+void extract_data(){
+    int row;
+    int max_rows = png_get_image_height(read_ptr, info_ptr);
+    int max_cols = png_get_image_width(read_ptr, info_ptr);
+    char buffer = 0;
+    int bits_extracted = 0;
+    bool done_extracting = false;
+
+    for(row = 0; row < max_rows; row++){
+        if(done_extracting){
+            break;
+        }
+        int col = 0;
+        if(row == 0){
+            //Extract the size of the message from the first BITS_NEEDED_TO_STORE_MESSAGE_LENGTH bytes
+            for(col; col < BITS_NEEDED_TO_STORE_MESSAGE_LENGTH; col++){
+                message_length |= ((*(row_pointers[0] + col) & 1) << col);
+            }
+        }
+
+        //Extract the actual message
+        for(col; col < max_cols * 3; col++){
+            //If we're beyond the size metadata and we've extracted 8 bits, write the byte to the file
+            if((col > BITS_NEEDED_TO_STORE_MESSAGE_LENGTH || row > 0) && col % BYTE_SIZE == 0){
+                fwrite(&buffer, 1, 1, output_fp);
+                buffer = 0;
+            }
+
+            //Check if all the data has been extracted
+            int bytes_read = (max_cols * row) * 3 + col;
+            if(bytes_read == (message_length * BYTE_SIZE) + BITS_NEEDED_TO_STORE_MESSAGE_LENGTH){
+                done_extracting = true;
+                break;
+            }
+
+            //Do the actual extracting
+            buffer |= ((*(row_pointers[row] + col) & 1) << col % BYTE_SIZE);
+            bits_extracted++;
+        }
+    }
+
+    fprintf(stdout, "Done extracting!\n%d bytes extracted\n", (int)(bits_extracted / BYTE_SIZE));
+}
+
+void output_embedded_png(){
+    FILE* output_png_fp;
+    output_png_fp = fopen(PNG_OUPUT_FILENAME, "wb");
+    if(output_png_fp == NULL){
+        fprintf(stderr, "Error in output_embedded_png(): %s\n", strerror(errno));
+        exit_cleanly();
+    }
+
+    write_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+    if(write_ptr == NULL){
+        fprintf(stderr, "Error in output_embedded_png(): png_create_write_struct() returned NULL\n");
+        exit_cleanly();
+    }
+
+    png_init_io(write_ptr, output_png_fp);
+    png_set_rows(write_ptr, info_ptr, row_pointers);
+    png_write_png(write_ptr, info_ptr, PNG_TRANSFORM_IDENTITY, NULL);
+    fclose(output_png_fp);
 }
 
 void calculate_available_space(png_structp read_ptr, png_infop info_ptr){
@@ -260,8 +334,12 @@ bool check_message_size(){
 void exit_cleanly(){
     //Free memory
     if(read_ptr && info_ptr){
-        fprintf(stdout, "Freeing Memory...\n");
+        fprintf(stdout, "Freeing Read Memory...\n");
         png_destroy_read_struct(&read_ptr, &info_ptr, (png_infopp)NULL);
+    }
+    if(write_ptr){
+        fprintf(stdout, "Freeing Write Memory...\n");
+        png_destroy_write_struct(&write_ptr, (png_infopp)NULL);
     }
 
     fprintf(stderr, "Exiting...\n");
