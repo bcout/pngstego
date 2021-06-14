@@ -34,17 +34,21 @@ $ ./pngstego embedded_filename.png extract output_filename
 ## RGB
 
 Original
+
 ![dark.png](dark.png)
 
 Embedded with message "Digital Forensics Course"
+
 ![embedded_dark.png](embedded_dark.png)
 
 ## RGBA
 
 Original
+
 ![partially_transparent.png](partially_transparent.png)
 
-Embedded with message "Digital Forensics Course"  
+Embedded with message "Digital Forensics Course"
+
 ![embedded_partially_transparent.png](embedded_partially_transparent.png)
 
 # Source Code
