@@ -1,3 +1,58 @@
+# Brennan Couturier
+# CS4419
+# Assignment 4
+# June 14, 2021
+
+# Summary
+This program embeds a given message into a given PNG image using least significant
+bit steganography. It supports RGB and RGBA images, but only supports text
+systems that use one byte-per-character (ASCII, not unicode). It can also extract
+data from an image modified with this tool.
+
+The first 32 bytes of the image are reserved for storing the length (in bytes)
+of the message. The message is then embedded in the first `n` bytes of the image.
+The program does not modify bytes past the end of the message.
+
+# Dependencies
+
+- libpng version 1.6.37
+    - libpng requires zlib, so that must also be installed
+    - https://sourceforge.net/projects/libpng/files/
+
+
+# Usage
+
+```
+$ make
+$ ./pngstego filename.png embed message.txt
+OR
+$ ./pngstego embedded_filename.png extract output_filename
+```
+
+# Example Usage
+
+![example_usage.png](example_usage.png)
+
+# Sample Images
+
+## RGB
+
+Original  
+![dark.png](dark.png)
+
+Embedded with message "Digital Forensics Course"  
+![embedded_dark.png](embedded_dark.png)
+
+## RGBA
+
+Original  
+![partially_transparent.png](partially_transparent.png)
+
+Embedded with message "Digital Forensics Course"  
+![embedded_partially_transparent.png](embedded_partially_transparent.png)
+
+# Source Code
+```
 /*
   Program to embed a message into a given PNG image using the LSB
     (Least Significant Bit) method.
@@ -484,3 +539,5 @@ void exit_cleanly(){
     fprintf(stderr, "Exiting...\n");
     exit(EXIT_SUCCESS);
 }
+
+```
